@@ -1,6 +1,7 @@
 """Orbit describer: reads classical orbital elements and describes each orbit
 in plain English (shape, regime, inclination class, altitudes, period)."""
 
+import csv
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,14 +143,34 @@ def describe(el):
     )
 
 
+FLOAT_FIELDS = ("a_km", "e", "i_deg", "raan_deg", "argp_deg", "nu_deg")
+
+
+def read_orbits(path):
+    """Read orbits from a CSV file.
+
+    Returns (orbits, skipped):
+      orbits  - list of Elements for every valid row
+      skipped - list of (line_number, name, reason) for every rejected row
+    """
+    orbits = []
+    skipped = []
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for line_number, row in enumerate(reader, start=2):   # line 1 is the header
+            name = row["name"]
+            try:
+                values = {field: float(row[field]) for field in FLOAT_FIELDS}
+                orbits.append(Elements(name=name, **values))
+            except (ValueError, TypeError) as err:
+                skipped.append((line_number, name, str(err)))
+    return orbits, skipped
+
+
 if __name__ == "__main__":
-    orbits = [
-        Elements("ISS", 6778, 0.0005, 51.64, 0, 0, 0),
-        Elements("GPS IIF", 26560, 0.01, 55.0, 120, 0, 0),
-        Elements("GOES-16 (GEO)", 42164, 0.0001, 0.05, 0, 0, 0),
-        Elements("Molniya", 26560, 0.74, 63.4, 0, 270, 0),
-        Elements("Sentinel-2A (SSO)", 7164, 0.0001, 98.57, 0, 0, 0),
-        Elements("Retrograde LEO", 6878, 0.01, 141.0, 0, 0, 0),
-    ]
+    orbits, skipped = read_orbits(INPUT_PATH)
+    print(f"Read {len(orbits)} orbits, skipped {len(skipped)}\n")
     for el in orbits:
         print(describe(el))
+    for line_number, name, reason in skipped:
+        print(f"Skipped line {line_number} ({name}): {reason}")
