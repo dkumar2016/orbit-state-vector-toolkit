@@ -1,0 +1,7 @@
+name,shape,regime,inclination_class,i_deg,perigee_alt_km,apogee_alt_km,period_min,max_lat_deg
+ISS,circular,LEO,prograde,51.64,396.5,403.3,92.56,51.64
+GPS IIF,near-circular,MEO,prograde,55.0,19916.3,20447.5,717.96,55.0
+GOES-16 (GEO),circular,GEO,equatorial,0.05,35781.6,35790.1,1436.06,0.05
+Molniya,highly elliptical,HEO,prograde,63.4,527.5,39836.3,717.96,63.4
+Sentinel-2A (SSO),circular,LEO,retrograde (sun-synchronous band),98.57,785.1,786.6,100.58,81.43
+Retrograde LEO,near-circular,LEO,retrograde,141.0,431.1,568.6,94.61,39.0

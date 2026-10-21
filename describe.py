@@ -145,7 +145,6 @@ def describe(el):
 
 FLOAT_FIELDS = ("a_km", "e", "i_deg", "raan_deg", "argp_deg", "nu_deg")
 
-
 def read_orbits(path):
     """Read orbits from a CSV file.
 
@@ -167,10 +166,49 @@ def read_orbits(path):
     return orbits, skipped
 
 
-if __name__ == "__main__":
+DESCRIPTION_FIELDS = ("name", "shape", "regime", "inclination_class", "i_deg",
+                      "perigee_alt_km", "apogee_alt_km", "period_min", "max_lat_deg")
+
+
+def write_descriptions(orbits, path):
+    """Write one CSV row per orbit, using the values from summarize()."""
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=DESCRIPTION_FIELDS)
+        writer.writeheader()
+        for el in orbits:
+            writer.writerow(summarize(el))
+
+
+def write_skipped(skipped, path):
+    """Write one line per rejected row: line number, name, reason."""
+    with open(path, "w", encoding="utf-8") as f:
+        if not skipped:
+            f.write("No rows skipped.\n")
+        for line_number, name, reason in skipped:
+            f.write(f"line {line_number}\t{name}\t{reason}\n")
+
+
+def main():
     orbits, skipped = read_orbits(INPUT_PATH)
-    print(f"Read {len(orbits)} orbits, skipped {len(skipped)}\n")
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    print(f"Read {len(orbits) + len(skipped)} rows from {INPUT_PATH.name}: "
+          f"{len(orbits)} described, {len(skipped)} skipped\n")
     for el in orbits:
         print(describe(el))
-    for line_number, name, reason in skipped:
-        print(f"Skipped line {line_number} ({name}): {reason}")
+
+    if skipped:
+        print("\nSkipped rows:")
+        for line_number, name, reason in skipped:
+            print(f"  line {line_number}  {name}: {reason}")
+
+    descriptions_path = OUTPUT_DIR / "descriptions.csv"
+    skipped_path = OUTPUT_DIR / "skipped.txt"
+    write_descriptions(orbits, descriptions_path)
+    write_skipped(skipped, skipped_path)
+    print(f"\nWrote {len(orbits)} descriptions to {descriptions_path}")
+    print(f"Wrote {len(skipped)} skipped rows to {skipped_path}")
+
+
+if __name__ == "__main__":
+    main()

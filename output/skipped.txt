@@ -1,0 +1,2 @@
+line 8	Bad eccentricity	Bad eccentricity: eccentricity must be 0 <= e < 1, got 1.2
+line 9	Inside Earth	Inside Earth: periapsis 3500.0 km is inside the Earth
