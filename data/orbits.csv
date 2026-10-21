@@ -1,0 +1,9 @@
+name,a_km,e,i_deg,raan_deg,argp_deg,nu_deg
+ISS,6778,0.0005,51.64,0,0,0
+GPS IIF,26560,0.01,55.0,120,0,0
+GOES-16 (GEO),42164,0.0001,0.05,0,0,0
+Molniya,26560,0.74,63.4,0,270,0
+Sentinel-2A (SSO),7164,0.0001,98.57,0,0,0
+Retrograde LEO,6878,0.01,141.0,0,0,0
+Bad eccentricity,7000,1.2,30,0,0,0
+Inside Earth,7000,0.5,30,0,0,0
