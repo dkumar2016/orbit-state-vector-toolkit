@@ -107,6 +107,41 @@ def inclination_label(i_deg, regime):
     return label
 
 
+def summarize(el):
+    """Collect every derived label and value for one orbit into a dict."""
+    regime = regime_label(el.a_km, el.e)
+    return {
+        "name": el.name,
+        "shape": shape_label(el.e),
+        "regime": regime,
+        "inclination_class": inclination_label(el.i_deg, regime),
+        "i_deg": el.i_deg,
+        "perigee_alt_km": round(el.perigee_alt_km, 1),
+        "apogee_alt_km": round(el.apogee_alt_km, 1),
+        "period_min": round(el.period_min, 2),
+        "max_lat_deg": round(max_latitude_deg(el.i_deg), 2),
+    }
+
+
+def format_period(minutes):
+    """'92.6 min' for short periods, '11.97 h (718.0 min)' for long ones."""
+    if minutes < 120:
+        return f"{minutes:.1f} min"
+    return f"{minutes / 60:.2f} h ({minutes:.1f} min)"
+
+
+def describe(el):
+    """One plain-English sentence describing the orbit."""
+    s = summarize(el)
+    return (
+        f"{s['name']}: {s['shape']} {s['regime']}, "
+        f"altitude {s['perigee_alt_km']:,.0f}-{s['apogee_alt_km']:,.0f} km, "
+        f"{s['inclination_class']} at {s['i_deg']:g} deg, "
+        f"period {format_period(s['period_min'])}. "
+        f"Ground track reaches +/-{s['max_lat_deg']:g} deg latitude."
+    )
+
+
 if __name__ == "__main__":
     orbits = [
         Elements("ISS", 6778, 0.0005, 51.64, 0, 0, 0),
@@ -116,8 +151,5 @@ if __name__ == "__main__":
         Elements("Sentinel-2A (SSO)", 7164, 0.0001, 98.57, 0, 0, 0),
         Elements("Retrograde LEO", 6878, 0.01, 141.0, 0, 0, 0),
     ]
-    print(f"{'Orbit':<20}{'Shape':<19}{'Regime':<8}{'Inclination class':<37}{'Max lat':>8}")
     for el in orbits:
-        regime = regime_label(el.a_km, el.e)
-        print(f"{el.name:<20}{shape_label(el.e):<19}{regime:<8}"
-              f"{inclination_label(el.i_deg, regime):<37}{max_latitude_deg(el.i_deg):>7.2f}°")
+        print(describe(el))
