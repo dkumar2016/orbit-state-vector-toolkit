@@ -112,7 +112,7 @@ def test_e_vector_lies_in_orbit_plane(r, v):
 def test_h_matches_elements(r, v):
     inv = invariants(r, v)
     expected = np.sqrt(MU_KM3_S2 * inv["a_km"] * (1 - inv["e"] ** 2))
-    assert inv["h"] == pytest.approx(expected, rel=1e-9)
+    assert inv["h_km2_s"] == pytest.approx(expected, rel=1e-9)
 
 
 @pytest.mark.parametrize("r, v", GOOD_STATES)
