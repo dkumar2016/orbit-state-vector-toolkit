@@ -10,6 +10,10 @@ R_EARTH_KM = 6378.137     # Earth's equatorial radius
 K_HAT = np.array([0.0, 0.0, 1.0])   # ECI Z axis (north pole)
 ZERO_TOL = 1e-10          # vector length treated as zero (circular / equatorial)
 
+R_FIELDS = ("x_km", "y_km", "z_km")  # position
+V_FIELDS = ("vx_km_s", "vy_km_s", "vz_km_s")  # velocity
+
+
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_PATH = BASE_DIR / "data" / "states.csv"
 OUTPUT_DIR = BASE_DIR / "output"
@@ -98,18 +102,38 @@ def invariants(r, v):
     }
 
 
+#----------------------Read CSV File-------------------------
+
+def read_states(path):
+    """Read state vectors from a CSV file.
+
+    Returns (states, skipped):
+      states  - list of (r, v) tuples for every valid row
+      skipped - list of (line_number, name, reason) for every rejected row
+    """
+
+    states = []
+    skipped = []
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for line_number, row in enumerate(reader, start=2):   # line 1 is the header
+            name = row["name"]
+            epoch = row["epoch_utc"]
+            try:
+                r = np.array([float(row[field]) for field in R_FIELDS])
+                v = np.array([float(row[field]) for field in V_FIELDS])
+                states.append((line_number, name, epoch, r, v))
+            except (ValueError, TypeError) as err:
+                skipped.append((line_number, name, str(err)))
+    return states, skipped
+
 if __name__ == "__main__":
-    test_states = {
-        "ISS-like": ([6778.0, 0.0, 0.0], [0.0, 4.759, 6.013]),
-        "Equatorial circular": ([7000.0, 0.0, 0.0], [0.0, 7.546053290107541, 0.0]),
-        "Eccentric": ([7000.0, 0.0, 0.0], [0.0, 7.451130602178055, 4.301912258934557]),
-        "Escape": ([7000.0, 0.0, 0.0], [0.0, 11.0, 0.0]),
-        "Inside Earth": ([6000.0, 0.0, 0.0], [0.0, 8.0, 0.0]),
-    }
-    for name, (r, v) in test_states.items():
+    states, skipped = read_states(INPUT_PATH)
+    for line_number, name, epoch, r, v in states:
         try:
-            inv = invariants(np.array(r), np.array(v))
-            print(f"{name}: e={inv['e']:.6f}  a={inv['a_km']:.1f} km  i={inv['i_deg']:.2f} deg  "
-                  f"circular={inv['circular']}  equatorial={inv['equatorial']}")
+            inv = invariants(r, v)
+            print(f"{name} @ {epoch}: e={inv['e']:.6f}  a={inv['a_km']:.1f} km  i={inv['i_deg']:.2f} deg")
         except ValueError as err:
-            print(f"{name}: rejected - {err}")
+            skipped.append((line_number, name, str(err)))
+    for line_number, name, reason in skipped:
+        print(f"Skipped line {line_number}  {name}: {reason}")
