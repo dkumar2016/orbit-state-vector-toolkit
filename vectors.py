@@ -39,7 +39,7 @@ def angle_deg(a, b):
 
 def is_zero(x, tol=ZERO_TOL):
     """True if a vector's length is below the tolerance."""
-    return np.linalg.norm(x) < tol
+    return bool(np.linalg.norm(x) < tol)
 
 
 # --- Vector invariants -------------------------------------------------------
