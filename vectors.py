@@ -63,13 +63,53 @@ def inclination_deg(h):
     return angle_deg(K_HAT, h)
 
 
+#-------------Compute Invariants-----------------
+
+def invariants(r, v):
+    """Validate a state vector and compute its vector invariants.
+
+    Returns a dict. Raises ValueError if the state is not a closed orbit
+    around the Earth.
+    """
+    r_mag = np.linalg.norm(r)
+    if r_mag <= R_EARTH_KM:
+        raise ValueError(f"position {r_mag:.1f} km is inside the Earth")
+
+    energy = specific_energy(r, v)
+    if energy >= 0:
+        raise ValueError(f"not a closed orbit: energy {energy:.3f} km2/s2 >= 0")
+
+    h_vec = angular_momentum(r, v)
+    n_vec = node_vector(h_vec)
+    e_vec = eccentricity_vector(r, v)
+
+    return {
+        "h_vec": h_vec,
+        "n_vec": n_vec,
+        "e_vec": e_vec,
+        "h": np.linalg.norm(h_vec),
+        "e": np.linalg.norm(e_vec),
+        "energy": energy,
+        "a_km": semi_major_axis(r, v),
+        "i_deg": inclination_deg(h_vec),
+        "r_dot_v": np.dot(r, v),
+        "circular": is_zero(e_vec),
+        "equatorial": is_zero(n_vec),
+    }
+
+
 if __name__ == "__main__":
-    r = np.array([6778.0, 0.0, 0.0])
-    v = np.array([0.0, 4.759, 6.013])
-    h = angular_momentum(r, v)
-    print("h     =", h)
-    print("n     =", node_vector(h))
-    print("e vec =", eccentricity_vector(r, v))
-    print("eps   =", specific_energy(r, v))
-    print("a     =", semi_major_axis(r, v))
-    print("i     =", inclination_deg(h))
+    test_states = {
+        "ISS-like": ([6778.0, 0.0, 0.0], [0.0, 4.759, 6.013]),
+        "Equatorial circular": ([7000.0, 0.0, 0.0], [0.0, 7.546053290107541, 0.0]),
+        "Eccentric": ([7000.0, 0.0, 0.0], [0.0, 7.451130602178055, 4.301912258934557]),
+        "Escape": ([7000.0, 0.0, 0.0], [0.0, 11.0, 0.0]),
+        "Inside Earth": ([6000.0, 0.0, 0.0], [0.0, 8.0, 0.0]),
+    }
+    for name, (r, v) in test_states.items():
+        try:
+            inv = invariants(np.array(r), np.array(v))
+            print(f"{name}: e={inv['e']:.6f}  a={inv['a_km']:.1f} km  i={inv['i_deg']:.2f} deg  "
+                  f"circular={inv['circular']}  equatorial={inv['equatorial']}")
+        except ValueError as err:
+            print(f"{name}: rejected - {err}")
