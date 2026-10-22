@@ -1,6 +1,6 @@
 # orbit-state-vector-toolkit
 
-Python tools for describing Earth orbits from their classical orbital elements, and for analysing an orbit from its state vector (position and velocity). Built in stages over Week 2 of a flight dynamics study plan; this README grows with the repo.
+Python tools for describing Earth orbits from their classical orbital elements, and for analysing an orbit from its state vector (position and velocity).
 
 | Part | Tool | Input | Status |
 |---|---|---|---|
