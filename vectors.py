@@ -25,7 +25,7 @@ R_FIELDS = ("x_km", "y_km", "z_km")                  # position columns in state
 V_FIELDS = ("vx_km_s", "vy_km_s", "vz_km_s")         # velocity columns in states.csv
 RESULT_FIELDS = ("name", "epoch_utc",
                  "h_x", "h_y", "h_z", "n_x", "n_y", "n_z", "e_x", "e_y", "e_z",
-                 "h", "e", "energy", "a_km", "i_deg", "r_dot_v",
+                 "h_km2_s", "e", "energy_km2_s2", "a_km", "i_deg", "r_dot_v",
                  "circular", "equatorial")            # columns in invariants.csv
 
 
@@ -122,9 +122,9 @@ def invariants(r, v):
         "h_vec": h_vec,
         "n_vec": n_vec,
         "e_vec": e_vec,
-        "h": np.linalg.norm(h_vec),
+        "h_km2_s": np.linalg.norm(h_vec),
         "e": np.linalg.norm(e_vec),
-        "energy": energy,
+        "energy_km2_s2": energy,
         "a_km": semi_major_axis(r, v),
         "i_deg": inclination_deg(h_vec),
         "r_dot_v": np.dot(r, v),
@@ -165,7 +165,7 @@ def yes_no(flag):
 
 def format_row(res):
     """One console table row for one result."""
-    return (f"{res['name']:<22}{res['h']:>12.1f}{res['e']:>11.6f}{res['a_km']:>11.1f}"
+    return (f"{res['name']:<22}{res['h_km2_s']:>12.1f}{res['e']:>11.6f}{res['a_km']:>11.1f}"
             f"{res['i_deg']:>9.2f}{yes_no(res['circular']):>10}{yes_no(res['equatorial']):>12}")
 
 
@@ -181,7 +181,8 @@ def to_csv_row(res):
     for vec, prefix in (("h_vec", "h"), ("n_vec", "n"), ("e_vec", "e")):
         for axis, value in zip("xyz", res[vec]):
             row[f"{prefix}_{axis}"] = value
-    for key in ("h", "e", "energy", "a_km", "i_deg", "r_dot_v", "circular", "equatorial"):
+    for key in ("h_km2_s", "e", "energy_km2_s2", "a_km", "i_deg", "r_dot_v",
+                "circular", "equatorial"):
         row[key] = res[key]
     return row
 
