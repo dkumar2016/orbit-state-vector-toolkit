@@ -1,0 +1,2 @@
+line 5  Escape: not a closed orbit: energy 3.557 km2/s2 >= 0
+line 6  Inside Earth: position 6000.0 km is inside the Earth
