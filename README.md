@@ -1,13 +1,14 @@
 # orbit-state-vector-toolkit
 
-Python tools for describing Earth orbits from their classical orbital elements, and for analysing an orbit from its state vector (position and velocity).
+Python tools for describing Earth orbits from their classical orbital elements, analysing an orbit from its state vector (position and velocity), and converting between the two. Built in stages over Week 2 of a flight dynamics study plan; this README grows with the repo.
 
-| Part | Tool | Input | Status |
+| Part | Tool | Input → output | Status |
 |---|---|---|---|
-| 1 | Orbit Describer (`describe.py`) | classical orbital elements | complete |
-| 2 | Vector invariants (`vectors.py`) | state vectors (r, v) | complete, 23 tests |
-| 3 | Elements ↔ state vector conversions | both | next |
-| 4 | Kepler solver and elements explorer | | planned |
+| 1 | Orbit Describer (`describe.py`) | elements → plain-English description | complete |
+| 2 | Vector invariants (`vectors.py`) | state vector → h, n, e vector, a, i | complete, 23 tests |
+| 3 | Forward conversion (`conversions.py`) | elements → state vector | complete, 35 tests |
+| 4 | Reverse conversion | state vector → elements | next |
+| 5 | Kepler solver and elements explorer | | planned |
 
 ## Repository structure
 
@@ -15,7 +16,10 @@ Python tools for describing Earth orbits from their classical orbital elements, 
 orbit-state-vector-toolkit/
 ├── describe.py              Part 1: orbit describer
 ├── vectors.py               Part 2: vector invariants from (r, v)
+├── conversions.py           Part 3: elements -> state vector (coe_to_rv)
+├── plot_orbit.py            Part 3: 3D plot of orbits from coe_to_rv
 ├── pytest.ini               pytest configuration
+├── .gitignore               ignores Python cache folders
 ├── data/
 │   ├── orbits.csv           Part 1 input: 6 real orbit types + 2 invalid rows
 │   └── states.csv           Part 2 input: 3 test states + 2 invalid rows
@@ -23,14 +27,19 @@ orbit-state-vector-toolkit/
 │   ├── descriptions.csv     Part 1 results
 │   ├── skipped.txt          Part 1 rejected rows
 │   ├── invariants.csv       Part 2 results
-│   └── states_skipped.txt   Part 2 rejected rows
-├── tests/
-│   └── test_vectors.py      23 tests for Part 2
+│   ├── states_skipped.txt   Part 2 rejected rows
+│   ├── states_from_elements.csv   Part 3 results (same format as data/states.csv)
+│   └── elements_skipped.txt       Part 3 rejected rows
+├── figures/
+│   └── orbit_3d.png         Part 3: Molniya and ISS orbits in ECI
+└── tests/
+    ├── test_vectors.py      23 tests for Part 2
+    └── test_conversions.py  35 tests for Part 3
 ```
 
 ## Setup and run
 
-Requires Python 3 with NumPy (Part 2) and pytest (tests). Part 1 uses the standard library only.
+Requires Python 3 with NumPy (Parts 2–3), matplotlib (the plot) and pytest (tests). Part 1 uses the standard library only.
 
 ```
 git clone git@github.com:dkumar2016/orbit-state-vector-toolkit.git
@@ -38,17 +47,19 @@ cd orbit-state-vector-toolkit
 
 python describe.py     # Part 1: describe the orbits in data/orbits.csv
 python vectors.py      # Part 2: invariants of the states in data/states.csv
-pytest -v              # run the tests
+python conversions.py  # Part 3: convert the orbits in data/orbits.csv to state vectors
+python plot_orbit.py   # Part 3: 3D plot, saved to figures/orbit_3d.png
+pytest -v              # run all 58 tests
 ```
 
-Both programs follow the same pipeline: **read** a CSV, **process** each valid row once, **output** to the console and to files. Bad rows are skipped with their line number and a reason; they never stop the program.
+All three programs follow the same pipeline: **read** a CSV, **process** each valid row once, **output** to the console and to files. Bad rows are skipped with their line number and a reason; they never stop the program.
 
 ## Conventions
 
 | | |
 |---|---|
 | Frame | Earth-centred inertial (ECI): I towards the vernal equinox (♈), K towards the north pole, J completing the right-handed set |
-| Units | km, km/s, degrees (radians only inside calculations) |
+| Units | km, km/s, degrees. Public functions take degrees; radians are used only inside, converted once at the edge |
 | Constants | μ⊕ = 398,600.4418 km³/s², R⊕ = 6,378.137 km |
 | Model | two-body (Keplerian): no J2, drag or other perturbations |
 
@@ -223,17 +234,90 @@ The identity tests hold for any orbit, so they check the maths itself, not just 
 
 ---
 
+## Part 3: Elements → state vector
+
+`conversions.py` provides `coe_to_rv(a_km, e, i_deg, raan_deg, argp_deg, nu_deg)`, which returns the position **r** (km) and velocity **v** (km/s) in ECI. Run as a program, it converts every orbit in `data/orbits.csv`.
+
+### Method
+
+1. **Perifocal frame (PQW).** P points to periapsis, Q is 90° ahead in the orbit plane, W is along **h**. In this frame the orbit is flat:
+
+   ```
+   p     = a (1 − e²)                          semi-latus rectum
+   r_pqw = p / (1 + e cos ν) · [cos ν, sin ν, 0]
+   v_pqw = √(μ/p) · [−sin ν, e + cos ν, 0]
+   ```
+
+2. **Rotate into ECI** with three rotations (a 3-1-3 sequence), one per orientation element:
+
+   ```
+   Q = Rz(Ω) · Rx(i) · Rz(ω)        read right to left: turn by ω, tilt by i, swing by Ω
+   r_eci = Q · r_pqw,  v_eci = Q · v_pqw
+   ```
+
+   Rz and Rx rotate a vector. Textbooks write the same matrix as R3(−Ω) R1(−i) R3(−ω), using axis rotations. The columns of Q are P̂, Q̂ and Ŵ expressed in ECI; the third column is the orbit normal, whose z-component is cos i.
+
+The order of the rotations is written in exactly one function, `rotation_matrix`, and tested on its own.
+
+### Hand-calculation checks
+
+| Case | Elements (a, e, i, Ω, ω, ν) | r (km) | v (km/s) |
+|---|---|---|---|
+| Circular | 6778, 0, 51.64°, 0, 0, 0 | [6778, 0, 0] | [0, 4.7592, 6.0132] |
+| Elliptical | 10000, 0.3, 30°, 40°, 60°, 45° | [−5525.240, 3561.849, 3625.812] | [−5.81348, −5.69228, −0.36008] |
+
+The circular case reproduces the Part 2 ISS-like state; Part 2 rounded its velocity to 3 decimals, which is where that state's tiny eccentricity came from.
+
+### Results for `data/orbits.csv`
+
+```
+Name                    |r| km  |v| km/s   r_eci (km)                    v_eci (km/s)
+ISS                     6774.6     7.672   [6774.6, 0.0, 0.0]            [0.000, 4.762, 6.016]
+GPS IIF                26294.4     3.913   [-13147.2, 22771.6, 0.0]      [-1.944, -1.122, 3.205]
+GOES-16 (GEO)          42159.8     3.075   [42159.8, 0.0, 0.0]           [0.000, 3.075, 0.003]
+Molniya                 6905.6    10.022   [-0.0, -3092.0, -6174.7]      [10.022, -0.000, -0.000]
+Sentinel-2A (SSO)       7163.3     7.460   [7163.3, 0.0, 0.0]            [0.000, -1.112, 7.377]
+Retrograde LEO          6809.2     7.689   [6809.2, 0.0, 0.0]            [0.000, -5.976, 4.839]
+```
+
+- **Molniya** has ω = 270°, so periapsis is south of the equator (z = −6,175 km) and the slow apoapsis is over the north.
+- **Sentinel-2A and the retrograde LEO** have negative v_y: with i > 90° they move against Earth's rotation.
+- The two invalid rows are skipped by the Part 1 reader, which Part 3 reuses rather than copies.
+
+`output/states_from_elements.csv` uses exactly the columns of `data/states.csv`, so Part 3's output is valid input for Part 2. A test writes a state with Part 3 and reads it back with Part 2's reader to prove it.
+
+### 3D check
+
+![Molniya and ISS orbits in ECI](figures/orbit_3d.png)
+
+`plot_orbit.py` calls `coe_to_rv` at 361 values of ν for each orbit. The figure confirms the conversion: each orbit is tilted by its inclination, Earth sits at a focus (Molniya's periapsis skims Earth, its apoapsis is far out), and Molniya's apoapsis is in the north. All axes use the same scale, so the shapes are true.
+
+### Tests
+
+`tests/test_conversions.py` has **35 tests** in five groups:
+
+| Group | Tests | What it checks |
+|---|---|---|
+| Known answers | 3 | both hand calculations; the hand-calculated rotation matrix |
+| Bad input | 2 | e ≥ 1 and a ≤ 0 rejected with clear messages |
+| Properties | 12 (3 × 4 orbits) | Q orthonormal (QᵀQ = I, det Q = 1); \|r\| = p/(1 + e cos ν); \|v\| matches vis-viva |
+| Cross-checks with Part 2 | 16 (4 × 4 orbits) | feeding coe_to_rv's output into vectors.py recovers the input i, a, e and Ω |
+| Output format | 2 | CSV columns match states.csv; a written file reads back with vectors.py |
+
+The four test orbits cover prograde and retrograde, near-circular and highly elliptical, and ν on both halves of the orbit. The cross-checks compare two independent, separately tested routes through the maths.
+
+---
+
 ## Limitations
 
 - Two-body model only: no J2, drag, third bodies or solar pressure.
 - Part 1's classification thresholds are conventions, not standards; values near a boundary can flip label.
 - The sun-synchronous flag is an inclination band only. True sun-synchronism depends on a, e and i together (J2 nodal precession).
 - The zero tolerance (10⁻¹⁰) separates rounding noise from real values. Deciding when a "nearly circular" orbit should be *treated* as circular is a mission choice, not set here.
-- Epochs are carried through but not yet used; time scales and propagation come later.
-
+- Epochs are carried through but not yet used; time scales and propagation come later. Part 3 assigns one fixed epoch, because `orbits.csv` has none.
+- Constants (μ, R⊕) are currently defined in `describe.py` and `vectors.py` and imported by later parts; they will move to a single constants module.
 
 ## Coming next
 
-- `coe_to_rv`: elements → state vector (perifocal frame and three rotations)
-- `rv_to_coe`: state vector → elements, using **h**, **n** and **e**, with quadrant checks and singular-case handling; round-trip tests below 10⁻⁶
+- `rv_to_coe`: state vector → elements, using **h**, **n** and **e**, with quadrant checks and singular-case handling; round-trip tests (elements → state → elements) below 10⁻⁶
 - Kepler's equation solver and an orbital-elements explorer notebook
