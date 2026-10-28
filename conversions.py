@@ -15,8 +15,7 @@ from vectors import MU_KM3_S2, angle_deg, invariants
 
 # --- Constants ---------------------------------------------------------------
 
-I_HAT = np.array([1.0, 0.0, 0.0])   # ECI I axis (vernal Equinox direction)
-
+I_HAT = np.array([1.0, 0.0, 0.0])   # ECI X axis (vernal equinox direction)
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_PATH = BASE_DIR / "data" / "orbits.csv"
@@ -29,6 +28,7 @@ EPOCH_UTC = "2026-10-21T00:00:00Z"   # orbits.csv has no epoch, so one fixed epo
 R_FIELDS = ("x_km", "y_km", "z_km")                  # position columns
 V_FIELDS = ("vx_km_s", "vy_km_s", "vz_km_s")         # velocity columns
 STATE_FIELDS = ("name", "epoch_utc") + R_FIELDS + V_FIELDS   # same columns as data/states.csv
+
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -100,18 +100,42 @@ def coe_to_rv(a_km, e, i_deg, raan_deg, argp_deg, nu_deg):
 
     return Q @ r_pqw, Q @ v_pqw
 
+
 def rv_to_coe(r, v):
     """State vector (km, km/s) in ECI -> classical orbital elements (angles in deg).
 
+    Singular cases (undefined angles set to 0, replacement angle stored instead):
+      circular, inclined     : argp = 0, nu = u (argument of latitude, n -> r)
+      equatorial, elliptical : raan = 0, argp = longitude of periapsis (I -> e)
+      circular, equatorial   : raan = argp = 0, nu = true longitude (I -> r)
+    u_deg is returned for every inclined orbit (None when equatorial).
     Raises ValueError (from invariants) if the state is not a closed orbit.
     """
     inv = invariants(r, v)                  # validates; h, n, e_vec, a, e, i, flags
     n = inv["n_vec"]
     e_vec = inv["e_vec"]
+    circular = inv["circular"]
+    equatorial = inv["equatorial"]
 
-    raan = angle_360(I_HAT, n, n[1])            # Omega: I -> n,      test n_y
-    argp = angle_360(n, e_vec, e_vec[2])        # omega: n -> e_vec,  test e_z
-    nu = angle_360(e_vec, r, inv["r_dot_v"])    # nu:    e_vec -> r,  test r.v
+    # Argument of latitude: angle n -> r, defined whenever the orbit has a node
+    u = None if equatorial else angle_360(n, r, r[2])         # test r_z
+
+    if not circular and not equatorial:                       # general orbit
+        raan = angle_360(I_HAT, n, n[1])                      # Omega: test n_y
+        argp = angle_360(n, e_vec, e_vec[2])                  # omega: test e_z
+        nu = angle_360(e_vec, r, inv["r_dot_v"])              # nu:    test r.v
+    elif circular and not equatorial:                         # no periapsis
+        raan = angle_360(I_HAT, n, n[1])
+        argp = 0.0
+        nu = u
+    elif equatorial and not circular:                         # no node
+        raan = 0.0
+        argp = angle_360(I_HAT, e_vec, e_vec[1])              # longitude of periapsis: test e_y
+        nu = angle_360(e_vec, r, inv["r_dot_v"])
+    else:                                                     # no node, no periapsis
+        raan = 0.0
+        argp = 0.0
+        nu = angle_360(I_HAT, r, r[1])                        # true longitude: test r_y
 
     return {
         "a_km": inv["a_km"],
@@ -120,8 +144,9 @@ def rv_to_coe(r, v):
         "raan_deg": raan,
         "argp_deg": argp,
         "nu_deg": nu,
-        "circular": inv["circular"],
-        "equatorial": inv["equatorial"],
+        "u_deg": u,
+        "circular": circular,
+        "equatorial": equatorial,
     }
 
 
