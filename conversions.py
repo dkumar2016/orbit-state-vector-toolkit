@@ -1,6 +1,8 @@
-"""Convert classical orbital elements to a state vector (r, v) in ECI.
+"""Convert between classical orbital elements and a state vector (r, v) in ECI.
 
-Pipeline:  read (orbits.csv -> elements)  ->  process (elements -> r, v)  ->  output
+coe_to_rv: elements -> r, v        rv_to_coe: r, v -> elements
+
+Pipeline (main):  read (orbits.csv -> elements)  ->  process (elements -> r, v)  ->  output
 """
 
 import csv
@@ -9,9 +11,12 @@ from pathlib import Path
 import numpy as np
 
 from describe import read_orbits
-from vectors import MU_KM3_S2
+from vectors import MU_KM3_S2, angle_deg, invariants
 
 # --- Constants ---------------------------------------------------------------
+
+I_HAT = np.array([1.0, 0.0, 0.0])   # ECI I axis (vernal Equinox direction)
+
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_PATH = BASE_DIR / "data" / "orbits.csv"
@@ -52,6 +57,12 @@ def rotation_matrix(raan_rad, i_rad, argp_rad):
     return Rz(raan_rad) @ Rx(i_rad) @ Rz(argp_rad)
 
 
+def angle_360(a, b, sign):
+    """Angle from a to b, 0-360 deg. sign < 0 means the second half."""
+    ang = angle_deg(a, b)
+    return ang if sign >= 0 else 360.0 - ang
+
+
 # --- 1. Read -----------------------------------------------------------------
 # Elements are read by read_orbits() from describe.py (imported above), which
 # validates each row (0 <= e < 1, periapsis above the Earth, 0 <= i <= 180)
@@ -88,6 +99,30 @@ def coe_to_rv(a_km, e, i_deg, raan_deg, argp_deg, nu_deg):
     Q = rotation_matrix(raan, i, argp)
 
     return Q @ r_pqw, Q @ v_pqw
+
+def rv_to_coe(r, v):
+    """State vector (km, km/s) in ECI -> classical orbital elements (angles in deg).
+
+    Raises ValueError (from invariants) if the state is not a closed orbit.
+    """
+    inv = invariants(r, v)                  # validates; h, n, e_vec, a, e, i, flags
+    n = inv["n_vec"]
+    e_vec = inv["e_vec"]
+
+    raan = angle_360(I_HAT, n, n[1])            # Omega: I -> n,      test n_y
+    argp = angle_360(n, e_vec, e_vec[2])        # omega: n -> e_vec,  test e_z
+    nu = angle_360(e_vec, r, inv["r_dot_v"])    # nu:    e_vec -> r,  test r.v
+
+    return {
+        "a_km": inv["a_km"],
+        "e": inv["e"],
+        "i_deg": inv["i_deg"],
+        "raan_deg": raan,
+        "argp_deg": argp,
+        "nu_deg": nu,
+        "circular": inv["circular"],
+        "equatorial": inv["equatorial"],
+    }
 
 
 # --- 3. Output ---------------------------------------------------------------
