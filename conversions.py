@@ -63,6 +63,11 @@ def angle_360(a, b, sign):
     return ang if sign >= 0 else 360.0 - ang
 
 
+def angle_diff_deg(a, b):
+    """Shortest signed difference a - b, in degrees, between -180 and 180."""
+    return (a - b + 180.0) % 360.0 - 180.0
+
+
 # --- 1. Read -----------------------------------------------------------------
 # Elements are read by read_orbits() from describe.py (imported above), which
 # validates each row (0 <= e < 1, periapsis above the Earth, 0 <= i <= 180)
@@ -149,6 +154,32 @@ def rv_to_coe(r, v):
         "equatorial": equatorial,
     }
 
+
+def roundtrip(a_km, e, i_deg, raan_deg, argp_deg, nu_deg):
+    """Elements -> (r, v) -> elements. Returns (recovered elements, max error).
+
+    Errors: a relative; e absolute; angles as a fraction of a full turn
+    (angle_diff_deg / 360). Position and velocity are always compared after a
+    second coe_to_rv; Omega, omega, nu are compared only for non-singular
+    orbits, where they are defined.
+    """
+    r, v = coe_to_rv(a_km, e, i_deg, raan_deg, argp_deg, nu_deg)
+    out = rv_to_coe(r, v)
+    r2, v2 = coe_to_rv(out["a_km"], out["e"], out["i_deg"],
+                       out["raan_deg"], out["argp_deg"], out["nu_deg"])
+
+    errors = [
+        abs(out["a_km"] - a_km) / a_km,
+        abs(out["e"] - e),
+        abs(angle_diff_deg(out["i_deg"], i_deg)) / 360.0,
+        np.linalg.norm(r2 - r) / np.linalg.norm(r),
+        np.linalg.norm(v2 - v) / np.linalg.norm(v),
+    ]
+    if not (out["circular"] or out["equatorial"]):
+        for key, value_in in (("raan_deg", raan_deg), ("argp_deg", argp_deg), ("nu_deg", nu_deg)):
+            errors.append(abs(angle_diff_deg(out[key], value_in)) / 360.0)
+
+    return out, max(errors)
 
 # --- 3. Output ---------------------------------------------------------------
 
