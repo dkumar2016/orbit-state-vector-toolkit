@@ -63,6 +63,10 @@ SINGULAR_CASES = [
     pytest.param((9000.0, 0.2, 0.0, 0.0, 250.0, 300.0), False, True, (0.0, 250.0, 300.0), id="equatorial-past-180"),
     pytest.param((7000.0, 0.0, 0.0, 0.0, 0.0, 123.0), True, True, (0.0, 0.0, 123.0), id="circular-equatorial"),
     pytest.param((7000.0, 0.0, 0.0, 0.0, 0.0, 300.0), True, True, (0.0, 0.0, 300.0), id="circular-equatorial-past-180"),
+    pytest.param((9000.0, 0.2, 180.0, 0.0, 50.0, 30.0), False, True, (0.0, 50.0, 30.0), id="retrograde-equatorial"),
+    pytest.param((9000.0, 0.2, 180.0, 0.0, 250.0, 300.0), False, True, (0.0, 250.0, 300.0), id="retrograde-equatorial-past-180"),
+    pytest.param((7000.0, 0.0, 180.0, 0.0, 0.0, 60.0), True, True, (0.0, 0.0, 60.0), id="retrograde-circular-equatorial"),
+    pytest.param((7000.0, 0.0, 180.0, 0.0, 0.0, 300.0), True, True, (0.0, 0.0, 300.0), id="retrograde-circular-equatorial-past-180"),
 ]
 
 

@@ -57,15 +57,15 @@ def rotation_matrix(raan_rad, i_rad, argp_rad):
     return Rz(raan_rad) @ Rx(i_rad) @ Rz(argp_rad)
 
 
+def angle_diff_deg(a, b):
+    """Shortest signed difference a - b, in degrees, between -180 and 180."""
+    return (a - b + 180.0) % 360.0 - 180.0
+
+
 def angle_360(a, b, sign):
     """Angle from a to b, 0-360 deg. sign < 0 means the second half."""
     ang = angle_deg(a, b)
     return ang if sign >= 0 else 360.0 - ang
-
-
-def angle_diff_deg(a, b):
-    """Shortest signed difference a - b, in degrees, between -180 and 180."""
-    return (a - b + 180.0) % 360.0 - 180.0
 
 
 # --- 1. Read -----------------------------------------------------------------
@@ -113,6 +113,9 @@ def rv_to_coe(r, v):
       circular, inclined     : argp = 0, nu = u (argument of latitude, n -> r)
       equatorial, elliptical : raan = 0, argp = longitude of periapsis (I -> e)
       circular, equatorial   : raan = argp = 0, nu = true longitude (I -> r)
+    For retrograde equatorial orbits (i = 180 deg) the satellite moves clockwise
+    seen from +K, so the longitude of periapsis and true longitude are measured
+    clockwise too.
     u_deg is returned for every inclined orbit (None when equatorial).
     Raises ValueError (from invariants) if the state is not a closed orbit.
     """
@@ -121,6 +124,9 @@ def rv_to_coe(r, v):
     e_vec = inv["e_vec"]
     circular = inv["circular"]
     equatorial = inv["equatorial"]
+    # Direction of travel seen from +K: +1 prograde, -1 retrograde.
+    # Only matters for equatorial orbits, where angles are measured from I.
+    turn = 1.0 if inv["h_vec"][2] >= 0 else -1.0
 
     # Argument of latitude: angle n -> r, defined whenever the orbit has a node
     u = None if equatorial else angle_360(n, r, r[2])         # test r_z
@@ -135,12 +141,12 @@ def rv_to_coe(r, v):
         nu = u
     elif equatorial and not circular:                         # no node
         raan = 0.0
-        argp = angle_360(I_HAT, e_vec, e_vec[1])              # longitude of periapsis: test e_y
+        argp = angle_360(I_HAT, e_vec, turn * e_vec[1])       # longitude of periapsis: test e_y
         nu = angle_360(e_vec, r, inv["r_dot_v"])
     else:                                                     # no node, no periapsis
         raan = 0.0
         argp = 0.0
-        nu = angle_360(I_HAT, r, r[1])                        # true longitude: test r_y
+        nu = angle_360(I_HAT, r, turn * r[1])                 # true longitude: test r_y
 
     return {
         "a_km": inv["a_km"],
@@ -180,6 +186,7 @@ def roundtrip(a_km, e, i_deg, raan_deg, argp_deg, nu_deg):
             errors.append(abs(angle_diff_deg(out[key], value_in)) / 360.0)
 
     return out, max(errors)
+
 
 # --- 3. Output ---------------------------------------------------------------
 

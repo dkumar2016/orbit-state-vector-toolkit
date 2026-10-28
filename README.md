@@ -7,8 +7,8 @@ Python tools for describing Earth orbits from their classical orbital elements, 
 | 1 | Orbit Describer (`describe.py`) | elements → plain-English description | complete |
 | 2 | Vector invariants (`vectors.py`) | state vector → h, n, e vector, a, i | complete, 23 tests |
 | 3 | Forward conversion (`conversions.py`) | elements → state vector | complete, 35 tests |
-| 4 | Reverse conversion | state vector → elements | next |
-| 5 | Kepler solver and elements explorer | | planned |
+| 4 | Reverse conversion (`conversions.py`, `roundtrip.py`) | state vector → elements | complete, 52 tests |
+| 5 | Kepler solver and elements explorer | | next |
 
 ## Repository structure
 
@@ -16,8 +16,9 @@ Python tools for describing Earth orbits from their classical orbital elements, 
 orbit-state-vector-toolkit/
 ├── describe.py              Part 1: orbit describer
 ├── vectors.py               Part 2: vector invariants from (r, v)
-├── conversions.py           Part 3: elements -> state vector (coe_to_rv)
+├── conversions.py           Parts 3-4: coe_to_rv and rv_to_coe
 ├── plot_orbit.py            Part 3: 3D plot of orbits from coe_to_rv
+├── roundtrip.py             Part 4: round-trip every orbit and report the max error
 ├── pytest.ini               pytest configuration
 ├── .gitignore               ignores Python cache folders
 ├── data/
@@ -34,12 +35,13 @@ orbit-state-vector-toolkit/
 │   └── orbit_3d.png         Part 3: Molniya and ISS orbits in ECI
 └── tests/
     ├── test_vectors.py      23 tests for Part 2
-    └── test_conversions.py  35 tests for Part 3
+    ├── test_conversions.py  35 tests for Part 3
+    └── test_roundtrip.py    52 tests for Part 4
 ```
 
 ## Setup and run
 
-Requires Python 3 with NumPy (Parts 2–3), matplotlib (the plot) and pytest (tests). Part 1 uses the standard library only.
+Requires Python 3 with NumPy (Parts 2–4), matplotlib (the plot) and pytest (tests). Part 1 uses the standard library only.
 
 ```
 git clone git@github.com:dkumar2016/orbit-state-vector-toolkit.git
@@ -49,10 +51,11 @@ python describe.py     # Part 1: describe the orbits in data/orbits.csv
 python vectors.py      # Part 2: invariants of the states in data/states.csv
 python conversions.py  # Part 3: convert the orbits in data/orbits.csv to state vectors
 python plot_orbit.py   # Part 3: 3D plot, saved to figures/orbit_3d.png
-pytest -v              # run all 58 tests
+python roundtrip.py    # Part 4: elements -> state -> elements, with the max error
+pytest -v              # run all 110 tests
 ```
 
-All three programs follow the same pipeline: **read** a CSV, **process** each valid row once, **output** to the console and to files. Bad rows are skipped with their line number and a reason; they never stop the program.
+The programs follow the same pipeline: **read** a CSV, **process** each valid row once, **output** to the console and to files. Bad rows are skipped with their line number and a reason; they never stop the program.
 
 ## Conventions
 
@@ -141,14 +144,14 @@ Skipped: line 8 (e = 1.2, not a closed orbit) and line 9 (periapsis 3,500 km, in
 
 ## Part 2: Vector invariants from a state vector
 
-`vectors.py` takes a state vector — position **r** and velocity **v** in ECI at an epoch — and computes the vectors and scalars that define the orbit. These are the building blocks for converting a state vector into orbital elements (Part 3).
+`vectors.py` takes a state vector — position **r** and velocity **v** in ECI at an epoch — and computes the vectors and scalars that define the orbit. These are the building blocks for converting a state vector into orbital elements (Part 4).
 
 ### What it computes
 
 | Quantity | Formula | Gives |
 |---|---|---|
 | angular momentum **h** | **r** × **v** | the orbit plane; i = angle between **K** and **h** |
-| node vector **n** | **K** × **h** | direction of the ascending node (Ω in Part 3) |
+| node vector **n** | **K** × **h** | direction of the ascending node (Ω in Part 4) |
 | eccentricity vector **e** | [(v² − μ/r) **r** − (**r·v**) **v**] / μ | points to periapsis; its length is e |
 | specific energy ε | v²/2 − μ/r | a = −μ / (2ε) |
 | **r · v** | dot product | climbing (> 0) or falling (< 0); the quadrant check for ν |
@@ -217,7 +220,7 @@ Skipped rows:
 - **The hand calculation is reproduced exactly** (**h**, i = 51.64°, a = 6,777.6 km).
 - **The ISS-like state is at apoapsis, not on a circle.** Its velocity, rounded to 3 decimals, is 0.24 m/s below circular speed. That makes e = 6.3 × 10⁻⁵, with **e** pointing *opposite* **r**: the satellite is at its highest point. The direction of a tiny eccentricity vector is set by rounding, which is why ω is unreliable for near-circular orbits and the argument of latitude (ω + ν) is used instead.
 - **The eccentric state's e vector points along r**, confirming it sits at periapsis, as it was built.
-- **The equatorial circular state loses both n and e**, so Ω and ω are both undefined; Part 3 must handle this.
+- **The equatorial circular state loses both n and e**, so Ω and ω are both undefined; Part 4 handles this.
 
 ### Tests
 
@@ -308,16 +311,79 @@ The four test orbits cover prograde and retrograde, near-circular and highly ell
 
 ---
 
+## Part 4: State vector → elements
+
+`conversions.py` also provides `rv_to_coe(r, v)`, which returns all six elements (angles in degrees), the argument of latitude, and the circular and equatorial flags. It builds on Part 2: `invariants(r, v)` validates the state and supplies **h**, **n**, the **e** vector, a, e and i, so the new code is only the three angles and the singular cases.
+
+### The angles
+
+Each angle is measured between two vectors along the chain **I** → **n** → **e** → **r**. `arccos` only returns 0–180°, so each one needs a sign test to pick the correct half:
+
+| Angle | Between | Sign test | Negative means |
+|---|---|---|---|
+| Ω | **I** → **n** | n_y | node on the −J side of the equator |
+| ω | **n** → **e** | e_z | periapsis south of the equator |
+| ν | **e** → **r** | **r·v** | satellite falling towards periapsis |
+
+Without them, a retrograde test orbit with Ω = 250° and ν = 200° comes back as Ω = 110° and ν = 160°, and Molniya's ω = 270° comes back as 90°, which turns the orbit upside down.
+
+### Singular cases
+
+When **e** or **n** is zero, the angles measured from it don't exist. The undefined angles are set to 0 and a replacement angle, which skips the missing vector, takes their place:
+
+| Case | Undefined | Replacement (sign test) | Stored as |
+|---|---|---|---|
+| circular, inclined | ω, ν | argument of latitude u: **n** → **r** (r_z) | ω = 0, ν = u |
+| equatorial, elliptical | Ω | longitude of periapsis ϖ: **I** → **e** (e_y) | Ω = 0, ω = ϖ |
+| circular, equatorial | Ω, ω, ν | true longitude λ: **I** → **r** (r_y) | Ω = ω = 0, ν = λ |
+
+The position depends only on the sums u = ω + ν, ϖ = Ω + ω and λ = Ω + ω + ν, so passing these values back to `coe_to_rv` reproduces the same **r** and **v**. For example, an equatorial orbit entered with Ω = 70°, ω = 50° returns Ω = 0°, ω = 120°: the split cannot be recovered without a node, but the orbit is identical. u is also returned for every inclined orbit, because for near-circular orbits it is far better conditioned than ω or ν.
+
+**Retrograde equatorial orbits (i = 180°)** move clockwise seen from +K, so ϖ and λ are measured clockwise too: their sign tests use −e_y and −r_y when h_z < 0. Measuring them anticlockwise was a bug found while writing this README (ω = 50° came back as 310°); it is now covered by four tests.
+
+### Round trip
+
+`roundtrip()` converts elements → (r, v) → elements → (r, v) and returns the worst error: a relative; e absolute; angles as a fraction of a full turn (wrap-aware, so 359.9999999° and 0° agree); and the relative difference in **r** and **v**. Ω, ω and ν are compared only for non-singular orbits; singular orbits are judged by their position.
+
+```
+Name                      a km         e    i deg    Ω deg    ω deg    ν deg   max error
+ISS                     6778.0  0.000500   51.640    0.000    0.000    0.000     1.4e-16
+GPS IIF                26560.0  0.010000   55.000  120.000    0.000  360.000     1.5e-08
+GOES-16 (GEO)          42164.0  0.000100    0.050    0.000    0.000    0.000     6.3e-15
+Molniya                26560.0  0.740000   63.400    0.000  270.000  360.000     2.1e-08
+Sentinel-2A (SSO)       7164.0  0.000100   98.570    0.000    0.000    0.000     2.1e-16
+Retrograde LEO          6878.0  0.010000  141.000    0.000    0.000    0.000     2.4e-16
+
+Maximum error over 6 orbits: 2.1e-08  (target 1e-06)  PASS
+```
+
+- Four orbits round-trip at machine precision (10⁻¹⁴ to 10⁻¹⁶).
+- **GPS and Molniya, at ν = 0, are around 10⁻⁸.** Near 0° the cosine is flat, so `arccos` cannot resolve the angle better than about 10⁻⁶°; ν returns as 359.9999988° (shown as 360.000). This is a limit of the arccos method, not a bug, and is still 50 times inside the target. An `arctan2`-based formulation would remove it.
+- **GOES-16** (e = 0.0001, i = 0.05°) is not singular by the 10⁻¹⁰ tolerance, so its ω and ν are reported, but they are ill-conditioned: a 1 mm/s change in velocity moves ω and ν by about ±0.2° while u stays fixed.
+
+### Tests
+
+`tests/test_roundtrip.py` has **52 tests**:
+
+| Group | Tests | What it checks |
+|---|---|---|
+| Sign tests | 3 | one case with no flip, one flipping n_y and r·v, one flipping e_z |
+| General round trip | 6 + 6 | six orbits within 10⁻⁶; u = ω + ν. Between them Ω, ω and ν each appear above and below 180°, so every sign test is exercised both ways |
+| Singular orbits | 10 + 10 + 10 + 1 | correct flags and replacement angles; position reproduced; u present only when inclined; no NaN. Includes prograde and retrograde (i = 180°) equatorial orbits |
+| Invalid input | 2 | escape and inside-Earth states rejected (by `invariants`) |
+| `angle_diff_deg` | 4 | wrap-around comparison, including 359.99999915° vs 0° |
+
+Angles are compared to 10⁻⁵°, not 10⁻⁶°, because of the arccos precision limit above: a 10⁻⁶° tolerance failed on Molniya's ν = 0 for that reason, and the tolerance documents it.
+
+---
+
 ## Limitations
 
 - Two-body model only: no J2, drag, third bodies or solar pressure.
 - Part 1's classification thresholds are conventions, not standards; values near a boundary can flip label.
 - The sun-synchronous flag is an inclination band only. True sun-synchronism depends on a, e and i together (J2 nodal precession).
-- The zero tolerance (10⁻¹⁰) separates rounding noise from real values. Deciding when a "nearly circular" orbit should be *treated* as circular is a mission choice, not set here.
+- The zero tolerance (10⁻¹⁰) separates rounding noise from real values. Deciding when a "nearly circular" orbit should be *treated* as circular is a mission choice, not set here; near-circular and near-equatorial orbits are better described by u, λ or equinoctial elements.
+- `rv_to_coe` uses arccos with sign tests, which loses precision (about 10⁻⁶°) near 0° and 180°.
 - Epochs are carried through but not yet used; time scales and propagation come later. Part 3 assigns one fixed epoch, because `orbits.csv` has none.
 - Constants (μ, R⊕) are currently defined in `describe.py` and `vectors.py` and imported by later parts; they will move to a single constants module.
 
-## Coming next
-
-- `rv_to_coe`: state vector → elements, using **h**, **n** and **e**, with quadrant checks and singular-case handling; round-trip tests (elements → state → elements) below 10⁻⁶
-- Kepler's equation solver and an orbital-elements explorer notebook
