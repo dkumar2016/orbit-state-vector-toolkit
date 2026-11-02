@@ -8,54 +8,61 @@ Python tools for describing Earth orbits from their classical orbital elements, 
 | 2 | Vector invariants (`vectors.py`) | state vector → h, n, e vector, a, i | complete, 23 tests |
 | 3 | Forward conversion (`conversions.py`) | elements → state vector | complete, 35 tests |
 | 4 | Reverse conversion (`conversions.py`, `roundtrip.py`) | state vector → elements | complete, 52 tests |
-| 5 | Kepler solver and elements explorer | | next |
+| 5 | Kepler's equation and propagation (`kepler.py`) | time → position | complete, 37 tests |
+| AP-2 | Orbital Elements Explorer (notebook) | visual explorer + round-trip check | complete |
 
 ## Repository structure
 
 ```
 orbit-state-vector-toolkit/
-├── describe.py              Part 1: orbit describer
-├── vectors.py               Part 2: vector invariants from (r, v)
-├── conversions.py           Parts 3-4: coe_to_rv and rv_to_coe
-├── plot_orbit.py            Part 3: 3D plot of orbits from coe_to_rv
-├── roundtrip.py             Part 4: round-trip every orbit and report the max error
-├── pytest.ini               pytest configuration
-├── .gitignore               ignores Python cache folders
+├── toolkit/                     the reusable package
+│   ├── __init__.py
+│   ├── constants.py             μ, R⊕, I and K unit vectors, tolerance, repository paths
+│   ├── describe.py              Part 1: orbit describer
+│   ├── vectors.py               Part 2: vector invariants from (r, v)
+│   ├── conversions.py           Parts 3-4: coe_to_rv, rv_to_coe, roundtrip
+│   └── kepler.py                Part 5: anomalies, Kepler's equation, propagation
+├── notebooks/
+│   └── ap2_elements_explorer.ipynb   AP-2: explorer notebook
+├── plot_orbit.py                3D plot of Molniya and the ISS
+├── roundtrip.py                 round-trip every orbit in data/orbits.csv
+├── tests/
+│   ├── test_vectors.py          23 tests
+│   ├── test_conversions.py      35 tests
+│   ├── test_roundtrip.py        52 tests
+│   └── test_kepler.py           37 tests
 ├── data/
-│   ├── orbits.csv           Part 1 input: 6 real orbit types + 2 invalid rows
-│   └── states.csv           Part 2 input: 3 test states + 2 invalid rows
-├── output/
-│   ├── descriptions.csv     Part 1 results
-│   ├── skipped.txt          Part 1 rejected rows
-│   ├── invariants.csv       Part 2 results
-│   ├── states_skipped.txt   Part 2 rejected rows
-│   ├── states_from_elements.csv   Part 3 results (same format as data/states.csv)
-│   └── elements_skipped.txt       Part 3 rejected rows
+│   ├── orbits.csv               6 real orbit types + 2 invalid rows (elements)
+│   └── states.csv               3 test states + 2 invalid rows (state vectors)
+├── output/                      CSV and text results written by the modules
 ├── figures/
-│   └── orbit_3d.png         Part 3: Molniya and ISS orbits in ECI
-└── tests/
-    ├── test_vectors.py      23 tests for Part 2
-    ├── test_conversions.py  35 tests for Part 3
-    └── test_roundtrip.py    52 tests for Part 4
+│   ├── orbit_3d.png
+│   ├── ap2_inclination_sweep.png
+│   └── ap2_annotated_orbit.png
+├── pytest.ini
+└── .gitignore
 ```
 
 ## Setup and run
 
-Requires Python 3 with NumPy (Parts 2–4), matplotlib (the plot) and pytest (tests). Part 1 uses the standard library only.
+Requires Python 3 with NumPy, matplotlib and pytest (and `ipykernel` to run the notebook in VS Code). Run everything from the repository root:
 
 ```
 git clone git@github.com:dkumar2016/orbit-state-vector-toolkit.git
 cd orbit-state-vector-toolkit
 
-python describe.py     # Part 1: describe the orbits in data/orbits.csv
-python vectors.py      # Part 2: invariants of the states in data/states.csv
-python conversions.py  # Part 3: convert the orbits in data/orbits.csv to state vectors
-python plot_orbit.py   # Part 3: 3D plot, saved to figures/orbit_3d.png
-python roundtrip.py    # Part 4: elements -> state -> elements, with the max error
-pytest -v              # run all 110 tests
+python -m toolkit.describe       # Part 1: describe the orbits in data/orbits.csv
+python -m toolkit.vectors        # Part 2: invariants of the states in data/states.csv
+python -m toolkit.conversions    # Part 3: orbits.csv -> state vectors
+python -m toolkit.kepler         # Part 5: Molniya timing
+python roundtrip.py              # Part 4: elements -> state -> elements, with the max error
+python plot_orbit.py             # 3D plot, saved to figures/orbit_3d.png
+pytest -v                        # all 147 tests
 ```
 
-The programs follow the same pipeline: **read** a CSV, **process** each valid row once, **output** to the console and to files. Bad rows are skipped with their line number and a reason; they never stop the program.
+Modules inside `toolkit/` are run with `python -m toolkit.<name>`, so that `toolkit` is importable as a package. Every module that reads data follows the same pipeline: **read** a CSV, **process** each valid row once, **output** to the console and to files. Bad rows are skipped with their line number and a reason.
+
+All physical constants and paths are defined once, in `toolkit/constants.py`, and imported everywhere else.
 
 ## Conventions
 
@@ -377,6 +384,87 @@ Angles are compared to 10⁻⁵°, not 10⁻⁶°, because of the arccos precisi
 
 ---
 
+## Part 5: Time on the orbit, Kepler's equation
+
+`kepler.py` connects position on the orbit to time. In two-body motion only ν changes, and it does not change steadily (ν̇ = h/r², fast near periapsis), so time is tracked with the **mean anomaly** M, which does:
+
+| Anomaly | Definition | Grows steadily with time? |
+|---|---|---|
+| true ν | angle at the focus from periapsis to the satellite | no |
+| eccentric E | angle at the centre to the satellite's projection on the auxiliary circle | no |
+| mean M | M = n(t − t_p), with n = √(μ/a³) | **yes** |
+
+```
+tan(ν/2) = √((1+e)/(1−e)) · tan(E/2)       ν ↔ E, half angles: no quadrant test
+M = E − e sin E                             Kepler's equation (Kepler's second law)
+E_{k+1} = E_k − (E_k − e sin E_k − M) / (1 − e cos E_k)      Newton-Raphson for M → E
+```
+
+ν → M is direct; M → E has no closed form and is solved by Newton-Raphson (start at E = M, or E = π when e > 0.8; tolerance 10⁻¹²). `propagate()` advances M by n·Δt, solves for the new ν and calls `coe_to_rv`: an exact two-body propagator.
+
+**Molniya timing** (a = 26,560 km, e = 0.74, T = 717.96 min):
+
+| ν | Time after periapsis |
+|---|---|
+| 90° | 27.4 min |
+| 180° (apoapsis) | 359.0 min (T/2) |
+| 270° | 690.5 min |
+
+Molniya spends **92%** of its period between ν = 90° and 270°, the high, slow part of the orbit. With ω = 270° that half is over the northern hemisphere, which is the purpose of the orbit. One hour after periapsis Newton converges in 5 iterations to E = 1.220024 rad, giving ν = 122.11°.
+
+### Tests
+
+`tests/test_kepler.py` has **37 tests**:
+
+| Group | Tests | What it checks |
+|---|---|---|
+| Solver | 15 | E = M for e = 0; the result satisfies Kepler's equation to 10⁻¹² for e up to 0.95; fewer than 10 iterations; the worked Newton example; e ≥ 1 rejected |
+| Anomaly conversions | 8 | ν → M → ν round trip on both halves of the orbit; all anomalies agree at periapsis and apoapsis; the worked example (E = 33.813°, M = 24.248°) |
+| Timing | 10 | Molniya period and timing table; apoapsis at exactly T/2 for every e |
+| Propagation | 4 | one period returns to the start; half a period from periapsis reaches a(1 + e); a, e, i, Ω, ω unchanged; ν = 122.11° after 1 h |
+
+---
+
+## AP-2: Orbital Elements Explorer
+
+`notebooks/ap2_elements_explorer.ipynb` uses the package (it imports, never copies) to convert both ways, check the round trip, and show how the elements shape and orient an orbit.
+
+| Section | Result |
+|---|---|
+| Round trip on 5 orbits (ISS-like, Molniya, near-GEO, retrograde, worked example) | worst error 2.1 × 10⁻⁸, target 10⁻⁶ |
+| Inclination sweep | figure 1 |
+| Annotated orbit | figure 2 |
+| Molniya over one period | 92.4% of the time between ν = 90° and 270° |
+
+![Inclination sweep](figures/ap2_inclination_sweep.png)
+
+All seven orbits share the line of nodes (Ω = 0, along I) and tilt about it by i: inclination is a rotation about the node line.
+
+![Annotated orbit](figures/ap2_annotated_orbit.png)
+
+a = 12,000 km, e = 0.3, i = 40°, Ω = 60°, ω = 45°, ν = 100°: the ascending node (u = 0), periapsis, apoapsis, the line of nodes, **r** and the velocity direction. Converting the plotted state back with `rv_to_coe` recovers all six elements.
+
+### Analysis: shape versus orientation, and what manoeuvres cost
+
+| Group | Elements | Set by |
+|---|---|---|
+| size and shape | a, e | energy and angular momentum |
+| orientation | i, Ω, ω | the direction of **h** and of the e vector |
+| position | ν | time (Kepler's equation) |
+
+A **tangential burn** changes speed along the velocity, so it changes the energy, and with it a and e. That is efficient: the whole Δv goes into the change wanted.
+
+Changing **i or Ω** means rotating the velocity vector into a new plane while keeping its length: Δv = 2v sin(Δi/2). The cost scales with the orbital speed itself. For the ISS-like orbit (v = 7.67 km/s):
+
+| Manoeuvre | Δv |
+|---|---|
+| raise a by 10 km | 5.7 m/s |
+| change i by 1° | 133.9 m/s, **24 times more** |
+
+So the orientation elements are expensive to change. Launches target the right inclination directly; plane changes are done where the speed is lowest (at apoapsis) or combined with large burns; constellations use J2's natural drift of Ω instead of thrust to spread their planes. ω is usually left to drift for the same reason. Week 5 quantifies these manoeuvres.
+
+---
+
 ## Limitations
 
 - Two-body model only: no J2, drag, third bodies or solar pressure.
@@ -385,5 +473,7 @@ Angles are compared to 10⁻⁵°, not 10⁻⁶°, because of the arccos precisi
 - The zero tolerance (10⁻¹⁰) separates rounding noise from real values. Deciding when a "nearly circular" orbit should be *treated* as circular is a mission choice, not set here; near-circular and near-equatorial orbits are better described by u, λ or equinoctial elements.
 - `rv_to_coe` uses arccos with sign tests, which loses precision (about 10⁻⁶°) near 0° and 180°.
 - Epochs are carried through but not yet used; time scales and propagation come later. Part 3 assigns one fixed epoch, because `orbits.csv` has none.
-- Constants (μ, R⊕) are currently defined in `describe.py` and `vectors.py` and imported by later parts; they will move to a single constants module.
 
+## Coming next
+
+- Week 3: numerical propagation (integrating the equation of motion), checked against `kepler.propagate`, then adding J2 and drag
