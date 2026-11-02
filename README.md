@@ -1,6 +1,6 @@
 # orbit-state-vector-toolkit
 
-Python tools for describing Earth orbits from their classical orbital elements, analysing an orbit from its state vector (position and velocity), and converting between the two. Built in stages over Week 2 of a flight dynamics study plan; this README grows with the repo.
+Python tools for describing Earth orbits from their classical orbital elements, analysing an orbit from its state vector (position and velocity), and converting between the two. 
 
 | Part | Tool | Input → output | Status |
 |---|---|---|---|
@@ -476,4 +476,4 @@ So the orientation elements are expensive to change. Launches target the right i
 
 ## Coming next
 
-- Week 3: numerical propagation (integrating the equation of motion), checked against `kepler.propagate`, then adding J2 and drag
+- Numerical propagation (integrating the equation of motion), checked against `kepler.propagate`, then adding J2 and drag
