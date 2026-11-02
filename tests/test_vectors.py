@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from vectors import (
-    MU_KM3_S2,
+from toolkit.constants import MU_KM3_S2
+from toolkit.vectors import (
     angular_momentum,
     eccentricity_vector,
     inclination_deg,

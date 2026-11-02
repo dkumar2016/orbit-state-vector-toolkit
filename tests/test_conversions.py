@@ -3,15 +3,15 @@
 import numpy as np
 import pytest
 
-from conversions import (
-    MU_KM3_S2,
+from toolkit.constants import MU_KM3_S2
+from toolkit.conversions import (
     STATE_FIELDS,
     coe_to_rv,
     rotation_matrix,
     to_csv_row,
     write_states,
 )
-from vectors import (
+from toolkit.vectors import (
     angular_momentum,
     eccentricity_vector,
     inclination_deg,

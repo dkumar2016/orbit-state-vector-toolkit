@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from conversions import angle_diff_deg, coe_to_rv, roundtrip, rv_to_coe
+from toolkit.conversions import angle_diff_deg, coe_to_rv, roundtrip, rv_to_coe
 
 TOL = 1e-6        # plan target for the round-trip error
 ANGLE_TOL = 1e-5  # degrees; arccos loses precision near 0 and 180 deg (about 1e-6 deg)

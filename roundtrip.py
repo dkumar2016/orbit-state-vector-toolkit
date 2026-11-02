@@ -2,10 +2,12 @@
 
 Prints the recovered elements and the worst error for each orbit, then the
 maximum over all orbits, against the target of 1e-6.
+
+Run from the repository root:  python roundtrip.py
 """
 
-from conversions import INPUT_PATH, format_skipped, roundtrip
-from describe import read_orbits
+from toolkit.conversions import INPUT_PATH, format_skipped, roundtrip
+from toolkit.describe import read_orbits
 
 TARGET = 1e-6
 

@@ -3,23 +3,21 @@
 coe_to_rv: elements -> r, v        rv_to_coe: r, v -> elements
 
 Pipeline (main):  read (orbits.csv -> elements)  ->  process (elements -> r, v)  ->  output
+
+Run from the repository root:  python -m toolkit.conversions
 """
 
 import csv
-from pathlib import Path
 
 import numpy as np
 
-from describe import read_orbits
-from vectors import MU_KM3_S2, angle_deg, invariants
+from toolkit.constants import DATA_DIR, I_HAT, MU_KM3_S2, OUTPUT_DIR
+from toolkit.describe import read_orbits
+from toolkit.vectors import angle_deg, invariants
 
 # --- Constants ---------------------------------------------------------------
 
-I_HAT = np.array([1.0, 0.0, 0.0])   # ECI X axis (vernal equinox direction)
-
-BASE_DIR = Path(__file__).resolve().parent
-INPUT_PATH = BASE_DIR / "data" / "orbits.csv"
-OUTPUT_DIR = BASE_DIR / "output"
+INPUT_PATH = DATA_DIR / "orbits.csv"
 STATES_PATH = OUTPUT_DIR / "states_from_elements.csv"
 SKIPPED_PATH = OUTPUT_DIR / "elements_skipped.txt"
 
@@ -28,7 +26,6 @@ EPOCH_UTC = "2026-10-21T00:00:00Z"   # orbits.csv has no epoch, so one fixed epo
 R_FIELDS = ("x_km", "y_km", "z_km")                  # position columns
 V_FIELDS = ("vx_km_s", "vy_km_s", "vz_km_s")         # velocity columns
 STATE_FIELDS = ("name", "epoch_utc") + R_FIELDS + V_FIELDS   # same columns as data/states.csv
-
 
 
 # --- Helpers -----------------------------------------------------------------

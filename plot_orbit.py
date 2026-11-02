@@ -1,15 +1,12 @@
 """3D plot of orbits computed with coe_to_rv: Molniya and the ISS in ECI."""
 
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 
-from conversions import coe_to_rv
-from vectors import R_EARTH_KM
+from toolkit.constants import FIGURES_DIR, R_EARTH_KM
+from toolkit.conversions import coe_to_rv
 
-BASE_DIR = Path(__file__).resolve().parent
-FIGURE_PATH = BASE_DIR / "figures" / "orbit_3d.png"
+FIGURE_PATH = FIGURES_DIR / "orbit_3d.png"
 
 # (name, a_km, e, i_deg, raan_deg, argp_deg, colour)
 ORBITS = [

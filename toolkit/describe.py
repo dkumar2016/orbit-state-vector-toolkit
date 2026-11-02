@@ -3,17 +3,17 @@ describes each orbit in plain English (shape, regime, inclination class,
 altitudes, period).
 
 Pipeline:  read (CSV -> Elements)  ->  process (Elements -> summary)  ->  output
+
+Run from the repository root:  python -m toolkit.describe
 """
 
 import csv
 import math
 from dataclasses import dataclass
-from pathlib import Path
+
+from toolkit.constants import DATA_DIR, MU_KM3_S2, OUTPUT_DIR, R_EARTH_KM
 
 # --- Constants ---------------------------------------------------------------
-
-MU_KM3_S2 = 398600.4418   # Earth's gravitational parameter
-R_EARTH_KM = 6378.137     # Earth's equatorial radius
 
 GEO_ALT_KM = 35786        # geostationary altitude
 GEO_BAND_KM = 200         # +/- band counted as GEO
@@ -21,9 +21,7 @@ LEO_MAX_ALT_KM = 2000     # upper limit of LEO
 HEO_MIN_E = 0.5           # eccentricity at which an orbit counts as highly elliptical
 SSO_BAND_DEG = (96, 102)  # inclinations flagged as sun-synchronous for LEO
 
-BASE_DIR = Path(__file__).resolve().parent
-INPUT_PATH = BASE_DIR / "data" / "orbits.csv"
-OUTPUT_DIR = BASE_DIR / "output"
+INPUT_PATH = DATA_DIR / "orbits.csv"
 DESCRIPTIONS_PATH = OUTPUT_DIR / "descriptions.csv"
 SKIPPED_PATH = OUTPUT_DIR / "skipped.txt"
 

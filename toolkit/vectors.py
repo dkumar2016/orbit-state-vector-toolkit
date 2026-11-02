@@ -1,23 +1,19 @@
 """Vector invariants of an orbit from a state vector (r, v) in ECI.
 
 Pipeline:  read (CSV -> r, v)  ->  process (r, v -> invariants)  ->  output
+
+Run from the repository root:  python -m toolkit.vectors
 """
 
 import csv
-from pathlib import Path
 
 import numpy as np
 
+from toolkit.constants import DATA_DIR, K_HAT, MU_KM3_S2, OUTPUT_DIR, R_EARTH_KM, ZERO_TOL
+
 # --- Constants ---------------------------------------------------------------
 
-MU_KM3_S2 = 398600.4418             # Earth's gravitational parameter
-R_EARTH_KM = 6378.137               # Earth's equatorial radius
-K_HAT = np.array([0.0, 0.0, 1.0])   # ECI Z axis (north pole)
-ZERO_TOL = 1e-10                    # vector length treated as zero (circular / equatorial)
-
-BASE_DIR = Path(__file__).resolve().parent
-INPUT_PATH = BASE_DIR / "data" / "states.csv"
-OUTPUT_DIR = BASE_DIR / "output"
+INPUT_PATH = DATA_DIR / "states.csv"
 INVARIANTS_PATH = OUTPUT_DIR / "invariants.csv"
 SKIPPED_PATH = OUTPUT_DIR / "states_skipped.txt"
 
